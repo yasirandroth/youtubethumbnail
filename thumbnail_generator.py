@@ -11,18 +11,14 @@ def create_viral_football_short(
     logo_path="input_assets/logo.png", 
     output_path="output_shorts/viral_short.png"
 ):
-    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    
-    # 1. Load and process base image for 9:16 vertical canvas using high-quality Bicubic/Lanczos resampling
-    print(f"Loading image from: {subject_path}")
+    # 1. Load and process base image for 9:16 vertical canvas using high-quality Lanczos resampling
+    print(f"Processing: {subject_path}")
     canvas = Image.open(subject_path).convert("RGBA")
     canvas = resize_and_crop(canvas, CANVAS_SIZE)
     
     # --- VISUAL & CLARITY ENHANCEMENTS ---
-    # Sharpen the background image to bring back crisp details
     canvas = canvas.filter(ImageFilter.SHARPEN)
     
-    # Boost contrast, color saturation, and edge sharpness
     enhancer_sharpness = ImageEnhance.Sharpness(canvas)
     canvas = enhancer_sharpness.enhance(1.5)  # Increase edge sharpness by 50%
     
@@ -87,6 +83,8 @@ def create_viral_football_short(
     # Headline Text
     bbox_top = font_headline.getbbox(headline_text)
     text_w = bbox_top[2] - bbox_top[0]
+    text_h = bbox_top[3] - bbox_top[0] if len(bbox_top) > 3 else (bbox_top[3] - bbox_top[1])
+    # Safe text centering calculation
     text_h = bbox_top[3] - bbox_top[1]
     text_x = (CANVAS_SIZE[0] - text_w) // 2
     text_y = top_y + (banner_height - text_h) // 2 - 8
@@ -115,7 +113,6 @@ def create_viral_football_short(
 
     # --- Optional Channel Logo Overlay ---
     if os.path.exists(logo_path):
-        print(f"Overlaying channel logo from: {logo_path}")
         logo = Image.open(logo_path).convert("RGBA")
         logo_size = (80, 80)
         logo = logo.resize(logo_size, Image.Resampling.LANCZOS)
@@ -124,10 +121,11 @@ def create_viral_football_short(
         logo_y = bottom_y + (ticker_height - logo_size[1]) // 2
         canvas.paste(logo, (logo_x, logo_y), logo)
 
-    # Save final asset in maximum quality RGB
+    # Save final asset
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     final_img = canvas.convert("RGB")
     final_img.save(output_path, "PNG", quality=100)
-    print(f"Successfully created high-clarity Short graphic at: {output_path}")
+    print(f"-> Saved: {output_path}")
 
 def resize_and_crop(img, target_size):
     target_width, target_height = target_size
@@ -141,17 +139,47 @@ def resize_and_crop(img, target_size):
         new_width = target_width
         new_height = int(target_width / img_ratio)
 
-    # Using highest quality resampling filter to prevent blurring during scale
     img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
     left = (new_width - target_width) / 2
     top = (new_height - target_height) / 2
     return img.crop((left, top, left + target_width, top + target_height))
 
 if __name__ == "__main__":
-    create_viral_football_short(
-        subject_path="input_assets/subject.png",
-        headline_text="THE GOAT IS BACK!",
-        bottom_text="FALSE NINE FOOTBALL TALK",
-        logo_path="input_assets/logo.png",
-        output_path="output_shorts/viral_short_sample.png"
-    )
+    # --- BATCH FOLDER PROCESSING CONFIGURATION ---
+    input_folder = "input_assets"      # Put all your raw football images here
+    output_folder = "output_shorts"    # Finished graphics will save here automatically
+    logo_file = "input_assets/logo.png" # Optional channel logo
+    
+    headline = "THE GOAT IS BACK!"     # Headline applied to all in batch (or you can customize per file)
+    ticker = "FALSE 9 FOOTBALL TALKS"
+    
+    # Supported image extensions
+    valid_extensions = (".png", ".jpg", ".jpeg", ".webp")
+    
+    if not os.path.exists(input_folder):
+        print(f"Error: Directory '{input_folder}' does not exist. Please create it and add your images.")
+    else:
+        images = [f for f in os.listdir(input_folder) if f.lower().endswith(valid_extensions)]
+        
+        if not images:
+            print(f"No images found in '{input_folder}'.")
+        else:
+            print(f"Found {len(images)} images to process. Starting batch generation...")
+            for filename in images:
+                src_path = os.path.join(input_folder, filename)
+                # Keep original filename name with a clean output format
+                base_name, _ = os.path.splitext(filename)
+                out_path = os.path.join(output_folder, f"{base_name}_short.png")
+                
+                try:
+                    create_viral_football_short(
+                        subject_path=src_path,
+                        headline_text=headline,
+                        bottom_text=ticker,
+                        logo_path=logo_file,
+                        output_path=out_path
+                    )
+                except Exception as e:
+                    print(f"Failed to process {filename}: {e}")
+                    
+            print("Batch processing complete! All graphics ready in folder:", output_folder)
